@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Filmes</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #f1f1f1; }
+        h1 { color: #333; }
+
+        .index-container { margin: 10px 0; }
+        .index-container button {
+            margin: 5px;
+            padding: 8px 12px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            background-color: #007BFF;
+            color: white;
+        }
+        .index-container button:hover { background-color: #0056b3; }
+
+        .container { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; justify-content: center; }
+        .card { padding: 10px; border: 1px solid #ddd; text-align: center; border-radius: 8px; transition: transform 0.3s ease, box-shadow 0.3s ease; color: black; }
+        .card img { width: 120px; height: auto; border-radius: 5px; }
+        .card p { font-size: 14px; margin: 5px 0; }
+        .card a { display: block; margin-top: 5px; text-decoration: none; color: #007BFF; font-size: 14px; }
+        .card:hover { transform: scale(1.05); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); }
+
+        .pagination {
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 10px 15px;
+            font-size: 16px;
+            margin: 0 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            color: black;
+        }
+
+        .pagination button:hover {
+            background-color: #f0f0f0;
+        }
+
+        .pagination button.disabled {
+            cursor: not-allowed;
+            background-color: #f2f2f2;
+        }
+
+        #searchInput {
+            margin: 20px 0;
+            padding: 10px;
+            font-size: 16px;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        footer {
+            margin-top: 30px;
+            padding: 10px;
+            background-color: #333;
+            color: white;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        footer a {
+            color: #ffcc00;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Lista de Filmes</h1>
+    <input type="file" id="fileInput">
+    <input type="text" id="searchInput" placeholder="Pesquisar filmes..." />
+    
+    <div class="index-container" id="indexContainer"></div>
+    
+    <div class="container" id="moviesContainer"></div>
+    <div class="pagination" id="paginationControls"></div>
+
+    <footer>
+        <p>Desenvolvido por <strong>Douglas Alvarenga</strong></p>
+        <p>&copy; 2025 Todos os direitos reservados.</p>
+    </footer>
+
+    <script>
+        let movies = [];
+        let currentPage = 1;
+        const moviesPerPage = 80;
+        let timeout = null;
+
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const lines = e.target.result.split(/\r?\n/);
+                movies = [];
+
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].startsWith('#EXTINF') && lines[i].toLowerCase().includes('group-title="filmes')) {
+                        let name = "Filme Desconhecido";
+                        let logo = "";
+                        let url = "";
+
+                        const nameMatch = lines[i].match(/tvg-name="([^"]+)"/);
+                        if (nameMatch) {
+                            name = nameMatch[1];
+                        }
+
+                        if (name.toLowerCase().includes("4k") || name.toLowerCase().includes("leg")) {
+                            continue;
+                        }
+
+                        const logoMatch = lines[i].match(/tvg-logo="([^"]+)"/);
+                        if (logoMatch) {
+                            logo = logoMatch[1];
+                        }
+
+                        if (lines[i + 1] && lines[i + 1].trim().startsWith("http")) {
+                            url = lines[i + 1].trim();
+                        } else {
+                            continue;
+                        }
+
+                        movies.push({ name, logo, url });
+                    }
+                }
+
+                if (movies.length === 0) {
+                    alert("Nenhum filme encontrado no grupo 'Filmes'.");
+                }
+
+                movies.sort((a, b) => a.name.localeCompare(b.name));
+                renderIndex();
+                renderMovies(currentPage);
+            };
+
+            reader.readAsText(file);
+        });
+
+        document.getElementById('searchInput').addEventListener('input', function(event) {
+            clearTimeout(timeout);
+            timeout = setTimeout(function() {
+                const query = event.target.value.toLowerCase();
+                const filteredMovies = movies.filter(movie => movie.name.toLowerCase().includes(query));
+                renderMovies(currentPage, filteredMovies);
+            }, 300);
+        });
+
+        function removeAccents(str) {
+            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        }
+
+        function renderMovies(page, filteredMovies = movies) {
+            const container = document.getElementById('moviesContainer');
+            container.innerHTML = '';
+
+            const startIndex = (page - 1) * moviesPerPage;
+            const endIndex = page * moviesPerPage;
+            const pageMovies = filteredMovies.slice(startIndex, endIndex);
+
+            pageMovies.forEach(movie => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.innerHTML = `
+                    <img src="${movie.logo}" alt="${movie.name}">
+                    <p>${movie.name}</p>
+                    <a href="${movie.url}" target="_blank">Assistir Filme</a>
+                `;
+                container.appendChild(card);
+            });
+
+            renderPagination(filteredMovies);
+
+            window.scrollTo(0, 0);
+        }
+
+        function renderPagination(filteredMovies) {
+            const totalPages = Math.ceil(filteredMovies.length / moviesPerPage);
+            const paginationControls = document.getElementById('paginationControls');
+            paginationControls.innerHTML = '';
+
+            if (totalPages > 1) {
+                for (let i = 1; i <= totalPages; i++) {
+                    const pageButton = document.createElement('button');
+                    pageButton.textContent = i;
+                    if (i === currentPage) pageButton.disabled = true;
+                    pageButton.addEventListener('click', function() {
+                        currentPage = i;
+                        renderMovies(currentPage, filteredMovies);
+                    });
+                    paginationControls.appendChild(pageButton);
+                }
+            }
+        }
+
+        function renderIndex() {
+            const indexContainer = document.getElementById('indexContainer');
+            indexContainer.innerHTML = '';
+
+            const allButton = document.createElement('button');
+            allButton.textContent = 'Todos';
+            allButton.addEventListener('click', function() {
+                renderMovies(1);
+            });
+            indexContainer.appendChild(allButton);
+
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+            letters.forEach(letter => {
+                const button = document.createElement('button');
+                button.textContent = letter;
+                button.addEventListener('click', function() {
+                    const filteredMovies = movies.filter(movie => removeAccents(movie.name[0].toUpperCase()) === letter);
+                    renderMovies(1, filteredMovies);
+                });
+                indexContainer.appendChild(button);
+            });
+        }
+    </script>
+</body>
+</html>
+
